@@ -1,0 +1,2 @@
+export DBNAME_DB_DSN='drivername://dbuser:password@host/dbname'
+
