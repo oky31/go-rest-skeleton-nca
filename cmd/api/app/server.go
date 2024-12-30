@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"context"
@@ -12,9 +12,9 @@ import (
 	"time"
 )
 
-func (app *application) server() error {
+func (app *Application) Server() error {
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", app.config.port),
+		Addr:         fmt.Sprintf(":%d", app.config.Port),
 		Handler:      app.routes(),
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  5 * time.Second,
@@ -46,7 +46,7 @@ func (app *application) server() error {
 		shutdownError <- nil
 	}()
 
-	app.logger.Info("starting server", "addr", srv.Addr, "env", app.config.env)
+	app.logger.Info("starting server", "addr", srv.Addr, "env", app.config.Env)
 	err := srv.ListenAndServe()
 	if !errors.Is(err, http.ErrServerClosed) {
 		return err

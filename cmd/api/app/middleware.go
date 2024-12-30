@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"errors"
@@ -10,13 +10,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/oky31/go-rest-skeleton-nca/internal/data"
+	"github.com/oky31/go-rest-skeleton-nca/internal/models"
 	"github.com/oky31/go-rest-skeleton-nca/internal/validator"
 	"github.com/tomasen/realip"
 	"golang.org/x/time/rate"
 )
 
-func (app *application) recoverPanic(next http.Handler) http.Handler {
+func (app *Application) recoverPanic(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		defer func() {
@@ -30,7 +30,7 @@ func (app *application) recoverPanic(next http.Handler) http.Handler {
 	})
 }
 
-func (app *application) rateLimit(next http.Handler) http.Handler {
+func (app *Application) rateLimit(next http.Handler) http.Handler {
 
 	type client struct {
 		limiter  *rate.Limiter
@@ -59,7 +59,7 @@ func (app *application) rateLimit(next http.Handler) http.Handler {
 	}()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if app.config.limiter.enable {
+		if app.config.Limiter.Enable {
 			// ip, _, err := net.SplitHostPort(r.RemoteAddr)
 			ip := realip.FromRequest(r)
 
@@ -67,8 +67,8 @@ func (app *application) rateLimit(next http.Handler) http.Handler {
 
 			if _, found := clients[ip]; !found {
 				clients[ip] = &client{limiter: rate.NewLimiter(
-					rate.Limit(app.config.limiter.rps),
-					app.config.limiter.burst,
+					rate.Limit(app.config.Limiter.Rps),
+					app.config.Limiter.Burst,
 				)}
 			}
 
@@ -86,7 +86,7 @@ func (app *application) rateLimit(next http.Handler) http.Handler {
 	})
 }
 
-func (app *application) logRequest(next http.Handler) http.Handler {
+func (app *Application) logRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var (
 			ip     = r.RemoteAddr
@@ -101,7 +101,7 @@ func (app *application) logRequest(next http.Handler) http.Handler {
 	})
 }
 
-func (app *application) authenticate(next http.Handler) http.Handler {
+func (app *Application) authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Add("Vary", "Authorization")
@@ -109,7 +109,7 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 		authorizationHeader := r.Header.Get("Authorization")
 
 		if authorizationHeader == "" {
-			r = app.contextSetUser(r, data.AnonymousUser)
+			r = app.contextSetUser(r, models.AnonymousUser)
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -124,15 +124,15 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 
 		v := validator.New()
 
-		if data.ValidateTokenPlaintext(v, token); !v.Valid() {
+		if models.ValidateTokenPlaintext(v, token); !v.Valid() {
 			app.invalidAuthenticationTokenResponse(w, r)
 			return
 		}
 
-		user, err := app.models.Users.GetForToken(data.ScopeAuthentication, token)
+		user, err := app.models.Users.GetForToken(models.ScopeAuthentication, token)
 		if err != nil {
 			switch {
-			case errors.Is(err, data.ErrRecordNotFound):
+			case errors.Is(err, models.ErrRecordNotFound):
 				app.invalidAuthenticationTokenResponse(w, r)
 			default:
 				app.serverErrorResponse(w, r, err)
@@ -146,7 +146,7 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 	})
 }
 
-func (app *application) requireAuthenticatedUser(next http.HandlerFunc) http.HandlerFunc {
+func (app *Application) requireAuthenticatedUser(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user := app.contextGetUser(r)
 
@@ -159,7 +159,7 @@ func (app *application) requireAuthenticatedUser(next http.HandlerFunc) http.Han
 	})
 }
 
-func (app *application) requireActivatedUser(next http.HandlerFunc) http.HandlerFunc {
+func (app *Application) requireActivatedUser(next http.HandlerFunc) http.HandlerFunc {
 
 	fn := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -176,7 +176,7 @@ func (app *application) requireActivatedUser(next http.HandlerFunc) http.Handler
 	return app.requireAuthenticatedUser(fn)
 }
 
-func (app *application) requirePermission(code string, next http.HandlerFunc) http.HandlerFunc {
+func (app *Application) requirePermission(code string, next http.HandlerFunc) http.HandlerFunc {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		user := app.contextGetUser(r)
 
@@ -196,7 +196,7 @@ func (app *application) requirePermission(code string, next http.HandlerFunc) ht
 	return app.requireActivatedUser(fn)
 }
 
-func (app *application) enableCORS(next http.Handler) http.Handler {
+func (app *Application) enableCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Vary", "Origin")
 
@@ -206,8 +206,8 @@ func (app *application) enableCORS(next http.Handler) http.Handler {
 
 		if origin != "" {
 
-			for i := range app.config.cors.trustedOrigins {
-				if origin == app.config.cors.trustedOrigins[i] {
+			for i := range app.config.Cors.TrustedOrigins {
+				if origin == app.config.Cors.TrustedOrigins[i] {
 
 					w.Header().Set("Access-Control-Allow-Origin", origin)
 
@@ -265,7 +265,7 @@ func (mw *metricsResponseWriter) Unwrap() http.ResponseWriter {
 	return mw.wrapped
 }
 
-func (app *application) metrics(next http.Handler) http.Handler {
+func (app *Application) metrics(next http.Handler) http.Handler {
 
 	var (
 		totalRequestsReceived           = expvar.NewInt("total_requests_received")

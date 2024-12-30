@@ -1,16 +1,16 @@
-package main
+package app
 
 import (
 	"net/http"
 )
 
-func (app *application) healthcheckHandler(w http.ResponseWriter, r *http.Request) {
+func (app *Application) healthcheckHandler(w http.ResponseWriter, r *http.Request) {
 
 	data := envelope{
 		"status": "available",
 		"system_information": map[string]string{
-			"environment": app.config.env,
-			"version":     version,
+			"environment": app.config.Env,
+			"version":     Version,
 		},
 	}
 
